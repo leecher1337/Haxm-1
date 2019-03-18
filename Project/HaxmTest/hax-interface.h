@@ -14,6 +14,8 @@
 #ifndef _HAX_INTERFACE_H
 #define _HAX_INTERFACE_H
 
+typedef uint64_t hax_paddr_t;
+typedef uint64_t hax_vaddr_t;
 /*
  * Common data structure for HAX interface on both Mac and Windows
  * The IOCTL is defined in hax-darwin.h and hax-windows.h
@@ -236,36 +238,54 @@ struct vcpu_state_t
  * it to QEMU virtual address space and returns the virtual address and size to
  * QEMU through hax_tunnel_info structure
  */
-struct hax_tunnel
-{
-    uint32_t _exit_reason;
-    uint32_t _exit_flag;
-    uint32_t _exit_status;
-    uint32_t user_event_pending;
-    int ready_for_interrupt_injection;
-    int request_interrupt_window;
-    union {
-        struct {
-            /* 0: read, 1: write */
-#define HAX_EXIT_IO_IN  1
-#define HAX_EXIT_IO_OUT 0
-            uint8_t _direction;
-            uint8_t _df;
-            uint16_t _size;
-            uint16_t _port;
-            uint16_t _count;
-            uint8_t _flags;
-            uint8_t _pad0;
-            uint16_t _pad1;
-            uint32_t _pad2;
-            uint64_t _vaddr;
-        } pio;
-        struct {
-            uint64_t gla;
-        } mmio;
-//        struct {
-//        } state;
-    };
+struct hax_tunnel {
+	uint32_t _exit_reason;
+	uint32_t pad0;
+	uint32_t _exit_status;
+	uint32_t user_event_pending;
+	int ready_for_interrupt_injection;
+	int request_interrupt_window;
+
+	union {
+		struct {
+			uint8_t _direction;
+			uint8_t _df;
+			uint16_t _size;
+			uint16_t _port;
+			uint16_t _count;
+			/* Followed owned by HAXM, QEMU should not touch them */
+			/* bit 1 is 1 means string io */
+			uint8_t _flags;
+			uint8_t _pad0;
+			uint16_t _pad1;
+			uint32_t _pad2;
+			hax_vaddr_t _vaddr;
+		} io;
+		struct {
+			hax_paddr_t gla;
+		} mmio;
+		struct {
+			hax_paddr_t gpa;
+#define HAX_PAGEFAULT_ACC_R  (1 << 0)
+#define HAX_PAGEFAULT_ACC_W  (1 << 1)
+#define HAX_PAGEFAULT_ACC_X  (1 << 2)
+#define HAX_PAGEFAULT_PERM_R (1 << 4)
+#define HAX_PAGEFAULT_PERM_W (1 << 5)
+#define HAX_PAGEFAULT_PERM_X (1 << 6)
+			uint32_t flags;
+			uint32_t reserved1;
+			uint64_t reserved2;
+		} pagefault;
+		struct {
+			hax_paddr_t dummy;
+		} state;
+		struct {
+			uint64_t rip;
+			uint64_t dr6;
+			uint64_t dr7;
+		} debug;
+	};
+	uint64_t apic_base;
 };
 
 struct hax_tunnel_info
@@ -324,6 +344,9 @@ enum exit_status {
      * MMIO handling performance, especially for GLES hardware acceleration
      */
     HAX_EXIT_FAST_MMIO,
+	HAX_EXIT_PAGEFAULT,
+	HAX_EXIT_DEBUG,
+	HAX_EXIT_OPCODE
 };
 
 /*
@@ -413,6 +436,17 @@ struct hax_fastmmio
     uint64_t _cr2;
     uint64_t _cr3;
     uint64_t _cr4;
+};
+
+#define HAX_DEBUG_ENABLE     (1 << 0)
+#define HAX_DEBUG_STEP       (1 << 1)
+#define HAX_DEBUG_USE_SW_BP  (1 << 2)
+#define HAX_DEBUG_USE_HW_BP  (1 << 3)
+
+struct hax_debug_t {
+	uint32_t control;
+	uint32_t reserved;
+	uint64_t dr[8];
 };
 
 #endif

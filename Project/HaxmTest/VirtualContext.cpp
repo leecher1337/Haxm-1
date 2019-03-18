@@ -23,6 +23,8 @@ int VCpu_Exec(hax_vcpu_state *CPU)
 
     do
 	{
+		struct vcpu_state_t state;
+
         hax_vcpu_interrupt(CPU);
 
         int haxResult = hax_vcpu_run(CPU);
@@ -40,6 +42,10 @@ int VCpu_Exec(hax_vcpu_state *CPU)
             printf("vCPU run failed for vCPU %x\n", CPU->vcpu_id);
             abort();
         }
+
+		hax_sync_vcpu_state(CPU, &state, 0);
+
+		printf("exitStatus = %08X @ %X\n", ht->_exit_status, state._rip);
 
         switch (ht->_exit_status)
         {
@@ -71,7 +77,7 @@ int VCpu_Exec(hax_vcpu_state *CPU)
 
 			// Guest state changed, currently only for shutdown
             case HAX_EXIT_STATECHANGE:
-                printf("VCPU shutdown request\n");
+                printf("VCPU shutdown request, cs=%04X, ip=%X\n", state._cs.selector, state._eip);
                 ret = HAX_EMUL_EXITLOOP;
                 break;
 
@@ -101,6 +107,27 @@ int VCpu_Exec(hax_vcpu_state *CPU)
             case HAX_EXIT_INTERRUPT:
             case HAX_EXIT_PAUSED:
                 break;
+
+			case HAX_EXIT_OPCODE:
+				printf("HAX_EXIT_OPCODE %02X %02X\n", CPU->iobuf[0], CPU->iobuf[1]);
+				if (CPU->iobuf[0] == 0xC4 && CPU->iobuf[1] == 0xC4)
+				{
+					// Query the CPU state
+					vcpu_state_t state;
+
+					printf("BOP %d\n", CPU->iobuf[2]);
+					hax_sync_vcpu_state(CPU, &state, 0);
+					state._rip += 3;
+					hax_sync_vcpu_state(CPU, &state, 1);
+				}
+				else
+				{
+					hax_inject_interrupt(CPU, 6);
+				}
+				break;
+			case HAX_EXIT_DEBUG:
+				printf("Debug\n");
+				break;
 
             default:
                 printf("Unknown exit %x from Hax driver\n", ht->_exit_status);

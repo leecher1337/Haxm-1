@@ -50,6 +50,12 @@
     <ClInclude Include="VMCS.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="hax_release_ver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="hax_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">

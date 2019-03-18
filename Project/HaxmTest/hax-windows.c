@@ -503,3 +503,56 @@ int hax_inject_interrupt(struct hax_vcpu_state *env, int vector)
     else
         return 0;
 }
+
+uint64_t hax_get_pa(struct hax_vcpu_state *env, uint64_t va, uint64_t *pa)
+{
+	int ret;
+	hax_fd fd;
+	HANDLE hDeviceVCPU;
+	DWORD dSize;
+
+	fd = env->fd;
+	if (hax_invalid_fd(fd))
+		return -1;
+
+	hDeviceVCPU = fd;
+
+	ret = DeviceIoControl(hDeviceVCPU,
+		HAX_VCPU_IOCTL_VA2GPA,
+		&va, sizeof(va),
+		pa, sizeof(uint64_t),
+		&dSize,
+		(LPOVERLAPPED)NULL);
+	if (!ret)
+		return -EFAULT;
+	else
+		return 0;
+}
+
+int hax_set_debug(struct hax_vcpu_state *env, uint32_t control)
+{
+	struct hax_debug_t dbg = { 0 };
+	int ret;
+	hax_fd fd;
+	HANDLE hDeviceVCPU;
+	DWORD dSize;
+
+	fd = env->fd;
+	if (hax_invalid_fd(fd))
+		return -1;
+
+	hDeviceVCPU = fd;
+
+	dbg.control = control;
+
+	ret = DeviceIoControl(hDeviceVCPU,
+		HAX_IOCTL_VCPU_DEBUG,
+		&dbg, sizeof(dbg),
+		NULL, 0,
+		&dSize,
+		(LPOVERLAPPED)NULL);
+	if (!ret)
+		return -EFAULT;
+	else
+		return 0;
+}

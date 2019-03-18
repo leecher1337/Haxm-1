@@ -1,5 +1,33 @@
 #include "stdafx.h"
 
+
+__declspec (naked) static void the_code(void)
+{
+	__asm 
+	{
+#ifdef TEST_BOP	/* Test BOPping */
+		hlt
+		hlt
+		__emit 0xC4
+		__emit 0xC4
+		__emit 0x10
+		hlt
+		hlt
+		int 3
+#else
+		inc ax	// 0
+		cli		// 2
+		inc ax	// 3
+		sti		// 5
+		dec ax	// 6
+		dec ax	// 8
+		int 3	// A
+#endif
+	}
+}
+static LPVOID lpTest;
+
+
 void TestDOS(hax_state *State, hax_vcpu_state *Cpu)
 {
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CS_SELECTOR, 0);
@@ -45,27 +73,61 @@ void TestDOS(hax_state *State, hax_vcpu_state *Cpu)
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_GDTR_LIMIT, 0);
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_GDTR_BASE, 0);
 
-	VCpu_WriteVMCS(Cpu, VMCS_GUEST_IDTR_LIMIT, 0);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_IDTR_LIMIT, 0x3FF);
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_IDTR_BASE, 0);
 
-	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CR0, 0x20 | 1);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CR0, 0 /*0x20 | 1*/);
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CR3, 0x0);
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CR4, 0x2000);
 
-	VCpu_WriteVMCS(Cpu, VMCS_GUEST_RSP, 0x100);
-	VCpu_WriteVMCS(Cpu, VMCS_GUEST_RIP, 0x100);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_RSP, 0);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_RIP, 0);
 	VCpu_WriteVMCS(Cpu, VMCS_GUEST_RFLAGS, 0x200 | 0x2);
 
-	LPVOID mem = VirtualAlloc(nullptr, 16384, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-	memset(mem, 0x90, 16384);
+#define VMMEM_SIZE 16384
+#define VMMEM_SIZE 0x10F000
+
+	LPVOID mem = VirtualAlloc(nullptr, VMMEM_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+
+
+#if 1
+	// IVT
+	memset((PBYTE)mem, 0, 0x400);
+	// Code
+	memset((PBYTE)mem + 0x400, 0xCC, 16384-0x400);
+	/*
 	*(BYTE *)((PBYTE)mem + 500) = 0x0F;
 	*(BYTE *)((PBYTE)mem + 501) = 0x01;
 	*(BYTE *)((PBYTE)mem + 502) = 0xD1;
 	*(BYTE *)((PBYTE)mem + 503) = 0xCC;
 	//memcpy(mem, data, sizeof(data));
+	*/
 
-	hax_populate_ram(State->vm, (uint64)mem, 16384);
-	hax_set_phys_mem(State, 0, 16384, (uint64)mem);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CS_SELECTOR, (USHORT)0x40);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CS_BASE, 0x40 << 4);
+
+	PBYTE P = (PBYTE)mem + 0x400, Q;
+	int i;
+	for (i = 0, Q = (PBYTE)&the_code; Q[i] != 0xCC; i++) P[i] = Q[i];
+#else
+	FILE *fp = fopen("C:\\temp\\ntvdm.dmp", "rb");
+	if (fp) {
+		fread(mem, VMMEM_SIZE, 1, fp);
+		fclose(fp);
+	}
+
+	//SET_CS_SELECTOR(selector);
+	//SET_CS_BASE((IU32)selector << 4);
+
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CS_SELECTOR, (USHORT)0x70);
+	VCpu_WriteVMCS(Cpu, VMCS_GUEST_CS_BASE, 0x70<<4);
+	
+#endif
+	WORD *pVec = (WORD*)mem;
+	pVec[0x21*2] = 8; pVec[0x21*2+1] = 0x40;
+	hax_populate_ram(State->vm, (uint64)mem, VMMEM_SIZE);
+	hax_set_phys_mem(State, 0, VMMEM_SIZE, (uint64)mem);
+	//hax_set_debug(Cpu, HAX_DEBUG_ENABLE | HAX_DEBUG_STEP);
 
 	VCpu_Run(Cpu);
 

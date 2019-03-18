@@ -51,6 +51,7 @@ int valid_hax_tunnel_size(uint32_t size);
 int hax_open_device(hax_fd *fd);
 hax_fd hax_mod_open(void);
 int hax_populate_ram(struct hax_vm *vm, uint64_t va, uint32_t size);
+int hax_set_debug(struct hax_vcpu_state *env, uint32_t control);
 int hax_set_phys_mem(struct hax_state *hax, target_phys_addr_t start_addr, ram_addr_t size, ram_addr_t phys_offset);
 int hax_capability(struct hax_state *hax, struct hax_capabilityinfo *cap);
 int hax_mod_version(struct hax_state *hax, struct hax_module_version *version);
