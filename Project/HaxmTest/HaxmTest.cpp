@@ -127,7 +127,7 @@ void TestDOS(hax_state *State, hax_vcpu_state *Cpu)
 	pVec[0x21*2] = 8; pVec[0x21*2+1] = 0x40;
 	hax_populate_ram(State->vm, (uint64)mem, VMMEM_SIZE);
 	hax_set_phys_mem(State, 0, VMMEM_SIZE, (uint64)mem);
-	//hax_set_debug(Cpu, HAX_DEBUG_ENABLE | HAX_DEBUG_STEP);
+	hax_set_debug(Cpu, HAX_DEBUG_ENABLE | HAX_DEBUG_STEP);
 
 	VCpu_Run(Cpu);
 
